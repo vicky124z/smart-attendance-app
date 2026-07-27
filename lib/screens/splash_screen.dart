@@ -15,39 +15,13 @@ class SplashScreen extends StatelessWidget {
             children: [
               const Spacer(flex: 2),
               // Logo
-              Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEEF2FF),
-                  borderRadius: BorderRadius.circular(28),
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Icon(
-                      Icons.calendar_month_rounded,
-                      size: 64,
-                      color: AppColors.primary.withValues(alpha: 0.3),
-                    ),
-                    Positioned(
-                      bottom: 16,
-                      right: 16,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.verified_user_rounded,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              SizedBox(
+  width: 150,
+  height: 150,
+  child: Image.asset(
+    'assets/icons/app_icon.jpeg',
+                   fit: BoxFit.contain,
+                  ),
               ),
               const SizedBox(height: 32),
               const Text(
