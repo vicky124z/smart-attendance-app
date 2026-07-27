@@ -25,7 +25,7 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "C:\\Users\\Viguv\\Documents\\smart_attendance\\assets\\icons\\app_icon.jpeg"
+  image_path: "C:/Users/Viguv/Documents/smart_attendance/assets/icons/app_icon.jpeg"
 
 flutter:
   uses-material-design: true
