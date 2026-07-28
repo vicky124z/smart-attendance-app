@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'utils/app_colors.dart';
+import 'providers/auth_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/role_selection_screen.dart';
 import 'screens/login_screen.dart';
@@ -9,7 +11,12 @@ import 'screens/teacher/teacher_dashboard.dart';
 import 'screens/student/student_dashboard.dart';
 
 void main() {
-  runApp(const SmartAttendanceApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => AuthProvider(),
+      child: const SmartAttendanceApp(),
+    ),
+  );
 }
 
 class SmartAttendanceApp extends StatelessWidget {

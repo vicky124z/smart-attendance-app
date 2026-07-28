@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../utils/app_colors.dart';
+import '../../providers/auth_provider.dart';
 
 class AdminMoreScreen extends StatelessWidget {
   const AdminMoreScreen({super.key});
@@ -30,8 +32,11 @@ class AdminMoreScreen extends StatelessWidget {
             icon: Icons.logout,
             title: 'Logout',
             color: AppColors.danger,
-            onTap: () {
-              Navigator.pushNamedAndRemoveUntil(context, '/', (r) => false);
+            onTap: () async {
+              await context.read<AuthProvider>().logout();
+              if (context.mounted) {
+                Navigator.pushNamedAndRemoveUntil(context, '/', (r) => false);
+              }
             },
           ),
         ],

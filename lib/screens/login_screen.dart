@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../utils/app_colors.dart';
+import '../providers/auth_provider.dart';
+import '../models/user_model.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,6 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _rememberMe = false;
+  bool _submitting = false;
   String role = 'student';
 
   @override
@@ -22,16 +26,45 @@ class _LoginScreenState extends State<LoginScreen> {
     if (args != null) role = args as String;
   }
 
-  void _login() {
-    switch (role) {
-      case 'admin':
+  Future<void> _login() async {
+    if (_emailController.text.trim().isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter email and password.')),
+      );
+      return;
+    }
+
+    setState(() => _submitting = true);
+    final auth = context.read<AuthProvider>();
+    final success = await auth.login(_emailController.text.trim(), _passwordController.text);
+    if (!mounted) return;
+    setState(() => _submitting = false);
+
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(auth.error ?? 'Login failed. Please try again.')),
+      );
+      return;
+    }
+
+    final user = auth.user!;
+    // Warn (but still proceed) if the selected role tab doesn't match the account's actual role.
+    if (userRoleToApiString(user.role) != role) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Note: logging in with your account\'s actual role.')),
+      );
+    }
+
+    switch (user.role) {
+      case UserRole.administrator:
         Navigator.pushReplacementNamed(context, '/admin');
         break;
-      case 'teacher':
+      case UserRole.teacher:
         Navigator.pushReplacementNamed(context, '/teacher');
         break;
-      default:
+      case UserRole.student:
         Navigator.pushReplacementNamed(context, '/student');
+        break;
     }
   }
 
@@ -208,7 +241,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton(
-                  onPressed: _login,
+                  onPressed: _submitting ? null : _login,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
@@ -217,7 +250,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: const Text(
+                  child: _submitting
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+                        )
+                      : const Text(
                     'Login',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
@@ -242,7 +281,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 height: 54,
                 child: OutlinedButton.icon(
-                  onPressed: _login,
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Google sign-in is not configured yet. Please use email/password.')),
+                    );
+                  },
                   icon: Image.network(
                     'https://www.google.com/favicon.ico',
                     width: 20,

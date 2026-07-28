@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
 import '../../utils/app_colors.dart';
-import '../../utils/dummy_data.dart';
+import '../../services/attendance_service.dart';
+import '../../models/attendance_model.dart';
 
 class MyAttendanceScreen extends StatefulWidget {
   const MyAttendanceScreen({super.key});
@@ -45,7 +46,7 @@ class _MyAttendanceScreenState extends State<MyAttendanceScreen>
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [
+        children: const [
           _HistoryTab(),
           _PercentageTab(),
         ],
@@ -54,198 +55,290 @@ class _MyAttendanceScreenState extends State<MyAttendanceScreen>
   }
 }
 
-class _HistoryTab extends StatelessWidget {
+class _HistoryTab extends StatefulWidget {
+  const _HistoryTab();
+
+  @override
+  State<_HistoryTab> createState() => _HistoryTabState();
+}
+
+class _HistoryTabState extends State<_HistoryTab> {
+  final _service = AttendanceService.instance;
+  bool _loading = true;
+  String? _error;
+  List<AttendanceRecordModel> _records = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final records = await _service.myHistory();
+      setState(() => _records = records);
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  String _formatDate(DateTime dt) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+  }
+
+  String _formatTime(DateTime dt) {
+    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final period = dt.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $period';
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: const Row(
-                    children: [
-                      Text('This Month', style: TextStyle(fontSize: 13, color: AppColors.textPrimary)),
-                      Spacer(),
-                      Icon(Icons.keyboard_arrow_down, size: 18, color: AppColors.textSecondary),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: const Row(
-                    children: [
-                      Text('All Courses', style: TextStyle(fontSize: 13, color: AppColors.textPrimary)),
-                      Spacer(),
-                      Icon(Icons.keyboard_arrow_down, size: 18, color: AppColors.textSecondary),
-                    ],
-                  ),
-                ),
-              ),
+              Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary)),
+              const SizedBox(height: 12),
+              ElevatedButton(onPressed: _load, child: const Text('Retry')),
             ],
           ),
         ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: DummyData.attendanceHistory.length,
-            itemBuilder: (context, index) {
-              final a = DummyData.attendanceHistory[index];
-              final isPresent = a['status'] == 'Present';
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            a['date'],
-                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            a['course'],
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            a['time'],
-                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                          ),
-                        ],
+      );
+    }
+    if (_records.isEmpty) {
+      return const Center(child: Text('No attendance history yet.', style: TextStyle(color: AppColors.textSecondary)));
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _records.length,
+        itemBuilder: (context, index) {
+          final a = _records[index];
+          final isPresent = a.isPresent;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _formatDate(a.markedAt),
+                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: isPresent ? const Color(0xFFECFDF5) : const Color(0xFFFEE2E2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        a['status'],
-                        style: TextStyle(
-                          fontSize: 12,
+                      const SizedBox(height: 4),
+                      Text(
+                        '${a.courseName} (${a.courseCode})',
+                        style: const TextStyle(
+                          fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: isPresent ? AppColors.secondary : AppColors.danger,
+                          color: AppColors.textPrimary,
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatTime(a.markedAt),
+                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
                 ),
-              );
-            },
-          ),
-        ),
-      ],
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isPresent ? const Color(0xFFECFDF5) : const Color(0xFFFEE2E2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    isPresent ? 'Present' : 'Absent',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isPresent ? AppColors.secondary : AppColors.danger,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }
 
-class _PercentageTab extends StatelessWidget {
+class _PercentageTab extends StatefulWidget {
+  const _PercentageTab();
+
+  @override
+  State<_PercentageTab> createState() => _PercentageTabState();
+}
+
+class _PercentageTabState extends State<_PercentageTab> {
+  final _service = AttendanceService.instance;
+  bool _loading = true;
+  String? _error;
+  MyAttendanceStats? _stats;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final stats = await _service.myStats();
+      setState(() => _stats = stats);
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Circular
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              children: [
-                const Text(
-                  'This Semester',
-                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 16),
-                CircularPercentIndicator(
-                  radius: 80,
-                  lineWidth: 14,
-                  percent: 0.874,
-                  center: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary)),
+              const SizedBox(height: 12),
+              ElevatedButton(onPressed: _load, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
+    }
+    final stats = _stats!;
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    'Overall',
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 16),
+                  CircularPercentIndicator(
+                    radius: 80,
+                    lineWidth: 14,
+                    percent: (stats.overallPercentage / 100).clamp(0.0, 1.0),
+                    center: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${stats.overallPercentage.toStringAsFixed(1)}%',
+                          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                        ),
+                        const Text('Overall', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      ],
+                    ),
+                    progressColor: AppColors.secondary,
+                    backgroundColor: AppColors.border,
+                    circularStrokeCap: CircularStrokeCap.round,
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      Text(
-                        '87.4%',
-                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                      _Legend(
+                        color: AppColors.secondary,
+                        label: 'Present',
+                        value: '${stats.present}',
                       ),
-                      Text('Overall', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      _Legend(
+                        color: AppColors.danger,
+                        label: 'Absent',
+                        value: '${stats.absent}',
+                      ),
+                      _Legend(
+                        color: AppColors.textSecondary,
+                        label: 'Total Classes',
+                        value: '${stats.total}',
+                      ),
                     ],
                   ),
-                  progressColor: AppColors.secondary,
-                  backgroundColor: AppColors.border,
-                  circularStrokeCap: CircularStrokeCap.round,
-                ),
-                const SizedBox(height: 20),
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _Legend(color: AppColors.secondary, label: 'Present', value: '87.4% (156)'),
-                    _Legend(color: AppColors.danger, label: 'Absent', value: '12.6% (22)'),
-                    _Legend(color: AppColors.textSecondary, label: 'Total Classes', value: '178'),
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          // Subject wise
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Subject Wise',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 16),
+                  if (stats.subjectWise.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text('No subject data yet.', style: TextStyle(color: AppColors.textSecondary)),
+                    )
+                  else
+                    ...stats.subjectWise.map((s) => _SubjectBar(
+                          name: s.courseName,
+                          percent: s.percentage / 100,
+                        )),
+                ],
+              ),
             ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Subject Wise',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                ),
-                SizedBox(height: 16),
-                _SubjectBar(name: 'Data Structures (CS201)', percent: 0.92),
-                _SubjectBar(name: 'DBMS (CS303)', percent: 0.89),
-                _SubjectBar(name: 'OS (CS402)', percent: 0.72),
-                _SubjectBar(name: 'AI (CS503)', percent: 0.95),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -300,7 +393,7 @@ class _SubjectBar extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: percent,
+              value: percent.clamp(0.0, 1.0),
               minHeight: 8,
               backgroundColor: AppColors.border,
               valueColor: AlwaysStoppedAnimation(

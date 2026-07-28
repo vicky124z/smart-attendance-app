@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
 import '../../utils/app_colors.dart';
-import '../../utils/dummy_data.dart';
+import '../../services/attendance_service.dart';
 import 'student_notifications.dart';
 import 'student_profile.dart';
 import 'my_attendance.dart';
@@ -28,7 +28,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages[_currentIndex],
+      body: IndexedStack(index: _currentIndex, children: _pages),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -61,8 +61,47 @@ class _StudentDashboardState extends State<StudentDashboard> {
   }
 }
 
-class _StudentHome extends StatelessWidget {
+class _StudentHome extends StatefulWidget {
   const _StudentHome();
+
+  @override
+  State<_StudentHome> createState() => _StudentHomeState();
+}
+
+class _StudentHomeState extends State<_StudentHome> {
+  final _attendanceService = AttendanceService.instance;
+  bool _loading = true;
+  String? _error;
+  double _percentage = 0;
+  int _todaysClasses = 0;
+  int _unreadNotifications = 0;
+  List<Map<String, dynamic>> _upcoming = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await _attendanceService.studentDashboard();
+      setState(() {
+        _percentage = (data['attendance_percentage'] as num?)?.toDouble() ?? 0.0;
+        _todaysClasses = data['todays_classes_count'] ?? 0;
+        _unreadNotifications = data['unread_notifications'] ?? 0;
+        _upcoming = List<Map<String, dynamic>>.from(data['upcoming_classes'] ?? []);
+      });
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,110 +116,145 @@ class _StudentHome extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Attendance Percentage Card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  const Text(
-                    'Attendance Percentage',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  CircularPercentIndicator(
-                    radius: 70,
-                    lineWidth: 12,
-                    percent: 0.874,
-                    center: const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+                ? _ErrorState(message: _error!, onRetry: _load)
+                : SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '87.4%',
+                        // Attendance Percentage Card
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              const Text(
+                                'Attendance Percentage',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textSecondary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              CircularPercentIndicator(
+                                radius: 70,
+                                lineWidth: 12,
+                                percent: (_percentage / 100).clamp(0.0, 1.0),
+                                center: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      '${_percentage.toStringAsFixed(1)}%',
+                                      style: const TextStyle(
+                                        fontSize: 28,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                progressColor: AppColors.secondary,
+                                backgroundColor: AppColors.border,
+                                circularStrokeCap: CircularStrokeCap.round,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _StatCard(
+                                icon: Icons.class_rounded,
+                                iconColor: AppColors.primary,
+                                bgColor: const Color(0xFFEEF2FF),
+                                value: '$_todaysClasses',
+                                label: "Today's Classes",
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _StatCard(
+                                icon: Icons.notifications_active_rounded,
+                                iconColor: AppColors.danger,
+                                bgColor: const Color(0xFFFEE2E2),
+                                value: '$_unreadNotifications',
+                                label: 'Notifications',
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'Upcoming Classes',
                           style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
                             color: AppColors.textPrimary,
                           ),
                         ),
+                        const SizedBox(height: 12),
+                        if (_upcoming.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24),
+                            child: Center(
+                              child: Text(
+                                'No classes scheduled for today.',
+                                style: TextStyle(color: AppColors.textSecondary),
+                              ),
+                            ),
+                          )
+                        else
+                          ..._upcoming.map((c) => _ClassTile(
+                                course: c['course'] ?? '',
+                                time: c['time'] ?? '',
+                                room: c['room'] ?? '',
+                              )),
                       ],
                     ),
-                    progressColor: AppColors.secondary,
-                    backgroundColor: AppColors.border,
-                    circularStrokeCap: CircularStrokeCap.round,
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'This Month  +5.2%',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.secondary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            // Today's Classes & Notifications
-            const Row(
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    icon: Icons.class_rounded,
-                    iconColor: AppColors.primary,
-                    bgColor: Color(0xFFEEF2FF),
-                    value: '4',
-                    label: "Today's Classes",
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    icon: Icons.notifications_active_rounded,
-                    iconColor: AppColors.danger,
-                    bgColor: Color(0xFFFEE2E2),
-                    value: '3',
-                    label: 'Notifications',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Upcoming Classes',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.wifi_off_rounded, size: 48, color: AppColors.textSecondary),
             const SizedBox(height: 12),
-            ...DummyData.upcomingClasses.map((c) => _ClassTile(
-                  course: c['course'],
-                  time: c['time'],
-                  room: c['room'],
-                )),
+            Text(message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary)),
+            const SizedBox(height: 16),
+            ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
           ],
         ),
       ),
