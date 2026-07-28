@@ -1,11 +1,57 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../utils/app_colors.dart';
+import '../models/user_model.dart';
+import '../providers/auth_provider.dart';
 
-class SplashScreen extends StatelessWidget {
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
   @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  bool _checkingSession = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreSession();
+  }
+
+  Future<void> _restoreSession() async {
+    final auth = context.read<AuthProvider>();
+    final restored = await auth.tryRestoreSession();
+    if (!mounted) return;
+    if (restored) {
+      final user = auth.user!;
+      String route;
+      switch (user.role) {
+        case UserRole.administrator:
+          route = '/admin';
+          break;
+        case UserRole.teacher:
+          route = '/teacher';
+          break;
+        case UserRole.student:
+          route = '/student';
+          break;
+      }
+      Navigator.pushReplacementNamed(context, route);
+      return;
+    }
+    setState(() => _checkingSession = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_checkingSession) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -16,12 +62,12 @@ class SplashScreen extends StatelessWidget {
               const Spacer(flex: 2),
               // Logo
               SizedBox(
-  width: 150,
-  height: 150,
-  child: Image.asset(
-    'assets/icons/app_icon.jpeg',
-                   fit: BoxFit.contain,
-                  ),
+                width: 150,
+                height: 150,
+                child: Image.asset(
+                  'assets/icons/app_icon.jpeg',
+                  fit: BoxFit.contain,
+                ),
               ),
               const SizedBox(height: 32),
               const Text(

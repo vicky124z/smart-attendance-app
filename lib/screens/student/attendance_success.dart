@@ -1,11 +1,30 @@
 import 'package:flutter/material.dart';
 import '../../utils/app_colors.dart';
+import '../../models/attendance_model.dart';
 
 class AttendanceSuccessScreen extends StatelessWidget {
-  const AttendanceSuccessScreen({super.key});
+  final AttendanceRecordModel? record;
+
+  const AttendanceSuccessScreen({super.key, this.record});
+
+  String _formatDate(DateTime dt) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+  }
+
+  String _formatTime(DateTime dt) {
+    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final period = dt.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $period';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final r = record;
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -46,15 +65,15 @@ class AttendanceSuccessScreen extends StatelessWidget {
                   color: AppColors.background,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Column(
+                child: Column(
                   children: [
-                    _DetailRow(label: 'Course', value: 'Data Structures (CS201)'),
-                    SizedBox(height: 12),
-                    _DetailRow(label: 'Session ID', value: 'SES-2024-05-20-001'),
-                    SizedBox(height: 12),
-                    _DetailRow(label: 'Time', value: '09:15 AM'),
-                    SizedBox(height: 12),
-                    _DetailRow(label: 'Date', value: '20 May 2024'),
+                    _DetailRow(label: 'Course', value: r != null ? '${r.courseName} (${r.courseCode})' : '-'),
+                    const SizedBox(height: 12),
+                    _DetailRow(label: 'Session ID', value: r?.sessionId.substring(0, 8).toUpperCase() ?? '-'),
+                    const SizedBox(height: 12),
+                    _DetailRow(label: 'Time', value: r != null ? _formatTime(r.markedAt) : '-'),
+                    const SizedBox(height: 12),
+                    _DetailRow(label: 'Date', value: r != null ? _formatDate(r.markedAt) : '-'),
                   ],
                 ),
               ),

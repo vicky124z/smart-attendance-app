@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../utils/app_colors.dart';
+import '../../services/attendance_service.dart';
 import 'students_list.dart';
 import 'attendance_analytics.dart';
 import 'admin_more.dart';
@@ -14,17 +15,17 @@ class AdminDashboard extends StatefulWidget {
 class _AdminDashboardState extends State<AdminDashboard> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = [
-    const _AdminHome(),
-    const StudentsListScreen(),
-    const AttendanceAnalyticsScreen(),
-    const AdminMoreScreen(),
+  final List<Widget> _pages = const [
+    _AdminHome(),
+    StudentsListScreen(),
+    AttendanceAnalyticsScreen(),
+    AdminMoreScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages[_currentIndex],
+      body: IndexedStack(index: _currentIndex, children: _pages),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),
@@ -44,8 +45,50 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 }
 
-class _AdminHome extends StatelessWidget {
+class _AdminHome extends StatefulWidget {
   const _AdminHome();
+
+  @override
+  State<_AdminHome> createState() => _AdminHomeState();
+}
+
+class _AdminHomeState extends State<_AdminHome> {
+  bool _loading = true;
+  String? _error;
+  int _totalStudents = 0;
+  int _totalTeachers = 0;
+  int _totalDepartments = 0;
+  int _totalCourses = 0;
+  double _todaysAttendancePct = 0;
+  int _activeSessions = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await AttendanceService.instance.adminDashboard();
+      setState(() {
+        _totalStudents = data['total_students'] ?? 0;
+        _totalTeachers = data['total_teachers'] ?? 0;
+        _totalDepartments = data['total_departments'] ?? 0;
+        _totalCourses = data['total_courses'] ?? 0;
+        _todaysAttendancePct = (data['todays_attendance_percentage'] as num?)?.toDouble() ?? 0.0;
+        _activeSessions = data['active_sessions'] ?? 0;
+      });
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,83 +100,117 @@ class _AdminHome extends StatelessWidget {
           IconButton(icon: const Icon(Icons.notifications_none_rounded), onPressed: () {}),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Stats grid
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.4,
-              children: const [
-                _AdminStat(icon: Icons.people, value: '1,248', label: 'Total Students', color: AppColors.primary),
-                _AdminStat(icon: Icons.school, value: '86', label: 'Total Teachers', color: AppColors.secondary),
-                _AdminStat(icon: Icons.business, value: '12', label: 'Total Departments', color: AppColors.accent),
-                _AdminStat(icon: Icons.menu_book, value: '36', label: 'Total Courses', color: AppColors.purple),
-              ],
-            ),
-            const SizedBox(height: 24),
-            // Today's Overview
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Today's Overview", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Column(
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+                ? _ErrorState(message: _error!, onRetry: _load)
+                : SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Stats grid
+                        GridView.count(
+                          crossAxisCount: 2,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 1.4,
                           children: [
-                            Text('78.6%', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.secondary)),
-                            Text("Today's Attendance", style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                            _AdminStat(icon: Icons.people, value: '$_totalStudents', label: 'Total Students', color: AppColors.primary),
+                            _AdminStat(icon: Icons.school, value: '$_totalTeachers', label: 'Total Teachers', color: AppColors.secondary),
+                            _AdminStat(icon: Icons.business, value: '$_totalDepartments', label: 'Total Departments', color: AppColors.accent),
+                            _AdminStat(icon: Icons.menu_book, value: '$_totalCourses', label: 'Total Courses', color: AppColors.purple),
                           ],
                         ),
-                      ),
-                      Container(width: 1, height: 40, color: AppColors.border),
-                      const Expanded(
-                        child: Column(
+                        const SizedBox(height: 24),
+                        // Today's Overview
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text("Today's Overview", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          '${_todaysAttendancePct.toStringAsFixed(1)}%',
+                                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.secondary),
+                                        ),
+                                        const Text("Today's Attendance", style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(width: 1, height: 40, color: AppColors.border),
+                                  Expanded(
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          '$_activeSessions',
+                                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primary),
+                                        ),
+                                        const Text('Active Sessions', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        // Quick Actions
+                        const Text('Quick Actions', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 12),
+                        const Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('5', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                            Text('Active Sessions', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                            _QuickAction(icon: Icons.person_add, label: 'Add Student', color: AppColors.primary),
+                            _QuickAction(icon: Icons.person_add_alt_1, label: 'Add Teacher', color: AppColors.secondary),
+                            _QuickAction(icon: Icons.menu_book, label: 'Add Course', color: AppColors.accent),
+                            _QuickAction(icon: Icons.assessment, label: 'Reports', color: AppColors.purple),
                           ],
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            // Quick Actions
-            const Text('Quick Actions', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.wifi_off_rounded, size: 48, color: AppColors.textSecondary),
             const SizedBox(height: 12),
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _QuickAction(icon: Icons.person_add, label: 'Add Student', color: AppColors.primary),
-                _QuickAction(icon: Icons.person_add_alt_1, label: 'Add Teacher', color: AppColors.secondary),
-                _QuickAction(icon: Icons.menu_book, label: 'Add Course', color: AppColors.accent),
-                _QuickAction(icon: Icons.assessment, label: 'Reports', color: AppColors.purple),
-              ],
-            ),
-            const SizedBox(height: 24),
-            // Recent Activities
-            const Text('Recent Activities', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 12),
-            const _ActivityTile(title: 'New student Rahul Sharma added', time: '10:20 AM'),
-            const _ActivityTile(title: 'Session started by Mr. Arjun', time: '09:15 AM'),
+            Text(message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary)),
+            const SizedBox(height: 16),
+            ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
           ],
         ),
       ),
@@ -195,37 +272,6 @@ class _QuickAction extends StatelessWidget {
         const SizedBox(height: 6),
         Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
       ],
-    );
-  }
-}
-
-class _ActivityTile extends StatelessWidget {
-  final String title;
-  final String time;
-
-  const _ActivityTile({required this.title, required this.time});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Text(title, style: const TextStyle(fontSize: 13))),
-          Text(time, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-        ],
-      ),
     );
   }
 }
