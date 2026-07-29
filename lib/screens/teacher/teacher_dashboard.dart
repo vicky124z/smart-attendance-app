@@ -437,11 +437,25 @@ class _MenuTile extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: ListTile(
-        leading: Icon(icon, color: color ?? AppColors.textPrimary, size: 22),
-        title: Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: color ?? AppColors.textPrimary)),
-        trailing: Icon(Icons.chevron_right, color: AppColors.textSecondary.withValues(alpha: 0.5)),
-        onTap: onTap,
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: ListTile(
+          leading: Icon(icon, color: color ?? AppColors.textPrimary, size: 22),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: color ?? AppColors.textPrimary,
+            ),
+          ),
+          trailing: Icon(
+            Icons.chevron_right,
+            color: AppColors.textSecondary.withValues(alpha: 0.5),
+          ),
+          onTap: onTap,
+        ),
       ),
     );
   }
