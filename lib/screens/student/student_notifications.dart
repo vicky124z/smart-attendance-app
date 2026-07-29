@@ -79,10 +79,14 @@ class _StudentNotificationsState extends State<StudentNotifications> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Notifications'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
+        // Used both as a tab and as a pushed route — only show back when we can pop.
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
+        automaticallyImplyLeading: Navigator.canPop(context),
       ),
       body: Column(
         children: [

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../utils/app_colors.dart';
 import '../../services/attendance_service.dart';
+import '../../providers/auth_provider.dart';
 import 'create_session.dart';
 
 class TeacherDashboard extends StatefulWidget {
@@ -16,8 +18,8 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   final List<Widget> _pages = const [
     _TeacherHome(),
     CreateSessionScreen(),
-    Center(child: Text('Reports')),
-    Center(child: Text('More')),
+    _TeacherReports(),
+    _TeacherMore(),
   ];
 
   @override
@@ -112,7 +114,6 @@ class _TeacherHomeState extends State<_TeacherHome> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Stats row
                         Row(
                           children: [
                             Expanded(
@@ -202,6 +203,245 @@ class _TeacherHomeState extends State<_TeacherHome> {
                       ],
                     ),
                   ),
+      ),
+    );
+  }
+}
+
+/// Live teacher report from `/attendance/dashboard/teacher/`.
+class _TeacherReports extends StatefulWidget {
+  const _TeacherReports();
+
+  @override
+  State<_TeacherReports> createState() => _TeacherReportsState();
+}
+
+class _TeacherReportsState extends State<_TeacherReports> {
+  final _service = AttendanceService.instance;
+  bool _loading = true;
+  String? _error;
+  int _todaysClasses = 0;
+  int _sessionsToday = 0;
+  int _presentToday = 0;
+  int _absentToday = 0;
+  List<Map<String, dynamic>> _schedule = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await _service.teacherDashboard();
+      setState(() {
+        _todaysClasses = data['todays_classes_count'] ?? 0;
+        _sessionsToday = data['attendance_sessions_today'] ?? 0;
+        _presentToday = data['present_students_today'] ?? 0;
+        _absentToday = data['absent_students_today'] ?? 0;
+        _schedule = List<Map<String, dynamic>>.from(data['todays_schedule'] ?? []);
+      });
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  double get _presentRate {
+    final total = _presentToday + _absentToday;
+    if (total == 0) return 0;
+    return (_presentToday / total) * 100;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(title: const Text('Reports')),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? _ErrorState(message: _error!, onRetry: _load)
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          children: [
+                            const Text("Today's Attendance Rate", style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${_presentRate.toStringAsFixed(1)}%',
+                              style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: AppColors.secondary),
+                            ),
+                            Text(
+                              '$_presentToday present · $_absentToday absent',
+                              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _ReportRow(label: "Today's classes", value: '$_todaysClasses'),
+                      _ReportRow(label: 'Sessions created today', value: '$_sessionsToday'),
+                      _ReportRow(label: 'Students present', value: '$_presentToday', valueColor: AppColors.secondary),
+                      _ReportRow(label: 'Students absent', value: '$_absentToday', valueColor: AppColors.danger),
+                      const SizedBox(height: 20),
+                      const Text("Today's Schedule", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 10),
+                      if (_schedule.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Text('No classes scheduled for today.', style: TextStyle(color: AppColors.textSecondary)),
+                        )
+                      else
+                        ..._schedule.map((s) => _ScheduleTile(
+                              course: s['course'] ?? '',
+                              time: s['time'] ?? '',
+                              room: s['room'] ?? '',
+                              color: AppColors.primary,
+                            )),
+                    ],
+                  ),
+                ),
+    );
+  }
+}
+
+class _ReportRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  const _ReportRow({required this.label, required this.value, this.valueColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+          Text(
+            value,
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: valueColor ?? AppColors.textPrimary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TeacherMore extends StatelessWidget {
+  const _TeacherMore();
+
+  @override
+  Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().user;
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(title: const Text('More')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (user != null) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: const Color(0xFFD1FAE5),
+                    child: Text(
+                      user.name.isNotEmpty ? user.name[0].toUpperCase() : 'T',
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.secondary),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(user.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 2),
+                        Text(user.email, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                        if (user.department != null)
+                          Text(user.department!, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+          const Text('Account', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+          const SizedBox(height: 8),
+          _MenuTile(
+            icon: Icons.logout,
+            title: 'Logout',
+            color: AppColors.danger,
+            onTap: () async {
+              await context.read<AuthProvider>().logout();
+              if (context.mounted) {
+                Navigator.pushNamedAndRemoveUntil(context, '/', (r) => false);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MenuTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+  final Color? color;
+
+  const _MenuTile({required this.icon, required this.title, required this.onTap, this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: color ?? AppColors.textPrimary, size: 22),
+        title: Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: color ?? AppColors.textPrimary)),
+        trailing: Icon(Icons.chevron_right, color: AppColors.textSecondary.withValues(alpha: 0.5)),
+        onTap: onTap,
       ),
     );
   }

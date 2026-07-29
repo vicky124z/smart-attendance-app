@@ -2,9 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../utils/app_colors.dart';
 import '../../providers/auth_provider.dart';
+import 'students_list.dart';
+import 'teachers_list.dart';
+import 'courses_list.dart';
+import 'departments_list.dart';
+import 'attendance_analytics.dart';
 
 class AdminMoreScreen extends StatelessWidget {
   const AdminMoreScreen({super.key});
+
+  void _open(BuildContext context, Widget screen) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,20 +23,36 @@ class AdminMoreScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('Administration', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+          const Text('Manage', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
           const SizedBox(height: 8),
-          _MenuTile(icon: Icons.people, title: 'Role Management', onTap: () {}),
-          _MenuTile(icon: Icons.security, title: 'Permission Management', onTap: () {}),
-          _MenuTile(icon: Icons.history, title: 'Audit Logs', onTap: () {}),
-          _MenuTile(icon: Icons.backup, title: 'Backup Database', onTap: () {}),
-          _MenuTile(icon: Icons.restore, title: 'Restore Database', onTap: () {}),
+          _MenuTile(
+            icon: Icons.people,
+            title: 'Students',
+            onTap: () => _open(context, const StudentsListScreen()),
+          ),
+          _MenuTile(
+            icon: Icons.school,
+            title: 'Teachers',
+            onTap: () => _open(context, const TeachersListScreen()),
+          ),
+          _MenuTile(
+            icon: Icons.business,
+            title: 'Departments',
+            onTap: () => _open(context, const DepartmentsListScreen()),
+          ),
+          _MenuTile(
+            icon: Icons.menu_book,
+            title: 'Courses',
+            onTap: () => _open(context, const CoursesListScreen()),
+          ),
+          _MenuTile(
+            icon: Icons.bar_chart,
+            title: 'Attendance Analytics',
+            onTap: () => _open(context, const AttendanceAnalyticsScreen()),
+          ),
           const SizedBox(height: 20),
-          const Text('System', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+          const Text('Account', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
           const SizedBox(height: 8),
-          _MenuTile(icon: Icons.settings, title: 'System Settings', onTap: () {}),
-          _MenuTile(icon: Icons.campaign, title: 'Manage Announcements', onTap: () {}),
-          _MenuTile(icon: Icons.info_outline, title: 'About App', onTap: () {}),
-          const SizedBox(height: 20),
           _MenuTile(
             icon: Icons.logout,
             title: 'Logout',

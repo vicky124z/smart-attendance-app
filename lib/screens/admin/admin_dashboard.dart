@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../../utils/app_colors.dart';
 import '../../services/attendance_service.dart';
 import 'students_list.dart';
+import 'teachers_list.dart';
+import 'courses_list.dart';
+import 'departments_list.dart';
 import 'attendance_analytics.dart';
 import 'admin_more.dart';
 
@@ -90,6 +93,10 @@ class _AdminHomeState extends State<_AdminHome> {
     }
   }
 
+  void _open(Widget screen) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -112,7 +119,6 @@ class _AdminHomeState extends State<_AdminHome> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Stats grid
                         GridView.count(
                           crossAxisCount: 2,
                           shrinkWrap: true,
@@ -121,14 +127,37 @@ class _AdminHomeState extends State<_AdminHome> {
                           crossAxisSpacing: 12,
                           childAspectRatio: 1.4,
                           children: [
-                            _AdminStat(icon: Icons.people, value: '$_totalStudents', label: 'Total Students', color: AppColors.primary),
-                            _AdminStat(icon: Icons.school, value: '$_totalTeachers', label: 'Total Teachers', color: AppColors.secondary),
-                            _AdminStat(icon: Icons.business, value: '$_totalDepartments', label: 'Total Departments', color: AppColors.accent),
-                            _AdminStat(icon: Icons.menu_book, value: '$_totalCourses', label: 'Total Courses', color: AppColors.purple),
+                            _AdminStat(
+                              icon: Icons.people,
+                              value: '$_totalStudents',
+                              label: 'Total Students',
+                              color: AppColors.primary,
+                              onTap: () => _open(const StudentsListScreen()),
+                            ),
+                            _AdminStat(
+                              icon: Icons.school,
+                              value: '$_totalTeachers',
+                              label: 'Total Teachers',
+                              color: AppColors.secondary,
+                              onTap: () => _open(const TeachersListScreen()),
+                            ),
+                            _AdminStat(
+                              icon: Icons.business,
+                              value: '$_totalDepartments',
+                              label: 'Total Departments',
+                              color: AppColors.accent,
+                              onTap: () => _open(const DepartmentsListScreen()),
+                            ),
+                            _AdminStat(
+                              icon: Icons.menu_book,
+                              value: '$_totalCourses',
+                              label: 'Total Courses',
+                              color: AppColors.purple,
+                              onTap: () => _open(const CoursesListScreen()),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 24),
-                        // Today's Overview
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
@@ -172,16 +201,35 @@ class _AdminHomeState extends State<_AdminHome> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        // Quick Actions
                         const Text('Quick Actions', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 12),
-                        const Row(
+                        Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            _QuickAction(icon: Icons.person_add, label: 'Add Student', color: AppColors.primary),
-                            _QuickAction(icon: Icons.person_add_alt_1, label: 'Add Teacher', color: AppColors.secondary),
-                            _QuickAction(icon: Icons.menu_book, label: 'Add Course', color: AppColors.accent),
-                            _QuickAction(icon: Icons.assessment, label: 'Reports', color: AppColors.purple),
+                            _QuickAction(
+                              icon: Icons.person_add,
+                              label: 'Students',
+                              color: AppColors.primary,
+                              onTap: () => _open(const StudentsListScreen()),
+                            ),
+                            _QuickAction(
+                              icon: Icons.person_add_alt_1,
+                              label: 'Teachers',
+                              color: AppColors.secondary,
+                              onTap: () => _open(const TeachersListScreen()),
+                            ),
+                            _QuickAction(
+                              icon: Icons.menu_book,
+                              label: 'Courses',
+                              color: AppColors.accent,
+                              onTap: () => _open(const CoursesListScreen()),
+                            ),
+                            _QuickAction(
+                              icon: Icons.assessment,
+                              label: 'Reports',
+                              color: AppColors.purple,
+                              onTap: () => _open(const AttendanceAnalyticsScreen()),
+                            ),
                           ],
                         ),
                       ],
@@ -223,27 +271,41 @@ class _AdminStat extends StatelessWidget {
   final String value;
   final String label;
   final Color color;
+  final VoidCallback? onTap;
 
-  const _AdminStat({required this.icon, required this.value, required this.label, required this.color});
+  const _AdminStat({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(height: 8),
-          Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-        ],
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(height: 8),
+              Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -253,25 +315,34 @@ class _QuickAction extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
+  final VoidCallback onTap;
 
-  const _QuickAction({required this.icon, required this.label, required this.color});
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 52,
-          height: 52,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(14),
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: color, size: 24),
           ),
-          child: Icon(icon, color: color, size: 24),
-        ),
-        const SizedBox(height: 6),
-        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-      ],
+          const SizedBox(height: 6),
+          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+        ],
+      ),
     );
   }
 }

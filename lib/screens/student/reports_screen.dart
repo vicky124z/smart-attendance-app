@@ -1,8 +1,58 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../utils/app_colors.dart';
+import '../../services/attendance_service.dart';
+import '../../models/attendance_model.dart';
 
-class ReportsScreen extends StatelessWidget {
+/// Student reports built from live `/attendance/my-stats/` and
+/// `/attendance/records/` data (no hardcoded dates).
+class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
+
+  @override
+  State<ReportsScreen> createState() => _ReportsScreenState();
+}
+
+class _ReportsScreenState extends State<ReportsScreen> {
+  final _service = AttendanceService.instance;
+  bool _loading = true;
+  String? _error;
+  MyAttendanceStats? _stats;
+  List<AttendanceRecordModel> _records = [];
+  int _tab = 0; // 0 = summary, 1 = subject detail
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final stats = await _service.myStats();
+      final history = await _service.myHistory();
+      setState(() {
+        _stats = stats;
+        _records = history;
+      });
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  String get _periodLabel {
+    if (_records.isEmpty) return 'No records yet';
+    final dates = _records.map((r) => r.markedAt).toList()..sort();
+    final fmt = DateFormat('d MMM yyyy');
+    if (dates.length == 1) return fmt.format(dates.first);
+    return '${fmt.format(dates.first)} – ${fmt.format(dates.last)}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -12,54 +62,157 @@ class ReportsScreen extends StatelessWidget {
         title: const Text('Reports'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.maybePop(context),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              padding: const EdgeInsets.all(4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Center(
-                        child: Text('My Reports', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
-                      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary)),
+                        const SizedBox(height: 12),
+                        ElevatedButton(onPressed: _load, child: const Text('Retry')),
+                      ],
                     ),
                   ),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: const Center(
-                        child: Text('Class Reports', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w500, fontSize: 13)),
-                      ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.all(4),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () => setState(() => _tab = 0),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: _tab == 0 ? AppColors.primary : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        'Summary',
+                                        style: TextStyle(
+                                          color: _tab == 0 ? Colors.white : AppColors.textSecondary,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () => setState(() => _tab = 1),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: _tab == 1 ? AppColors.primary : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        'By Subject',
+                                        style: TextStyle(
+                                          color: _tab == 1 ? Colors.white : AppColors.textSecondary,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        if (_tab == 0) _buildSummary() else _buildBySubject(),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+    );
+  }
+
+  Widget _buildSummary() {
+    final stats = _stats!;
+    return Column(
+      children: [
+        _ReportTile(
+          icon: Icons.insights_rounded,
+          title: 'Overall Attendance',
+          subtitle: _periodLabel,
+          trailing: '${stats.overallPercentage.toStringAsFixed(1)}%',
+          trailingColor: AppColors.secondary,
+        ),
+        _ReportTile(
+          icon: Icons.check_circle_outline,
+          title: 'Classes Present',
+          subtitle: 'Marked present this term',
+          trailing: '${stats.present}',
+          trailingColor: AppColors.secondary,
+        ),
+        _ReportTile(
+          icon: Icons.cancel_outlined,
+          title: 'Classes Absent',
+          subtitle: 'Marked absent this term',
+          trailing: '${stats.absent}',
+          trailingColor: AppColors.danger,
+        ),
+        _ReportTile(
+          icon: Icons.school_outlined,
+          title: 'Total Classes',
+          subtitle: 'All sessions counted',
+          trailing: '${stats.total}',
+        ),
+        _ReportTile(
+          icon: Icons.history,
+          title: 'Attendance Records',
+          subtitle: 'Entries in history',
+          trailing: '${_records.length}',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBySubject() {
+    final subjects = _stats!.subjectWise;
+    if (subjects.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 32),
+        child: Text('No subject-wise data yet.', style: TextStyle(color: AppColors.textSecondary)),
+      );
+    }
+    return Column(
+      children: subjects
+          .map(
+            (s) => _ReportTile(
+              icon: Icons.menu_book_outlined,
+              title: s.courseName,
+              subtitle: '${s.present} present / ${s.total} total',
+              trailing: '${s.percentage.toStringAsFixed(1)}%',
+              trailingColor: s.percentage >= 75 ? AppColors.secondary : AppColors.warning,
             ),
-            const SizedBox(height: 20),
-            const _ReportTile(icon: Icons.calendar_month, title: 'Monthly Report', subtitle: 'May 2024', format: 'PDF'),
-            const _ReportTile(icon: Icons.date_range, title: 'Weekly Report', subtitle: '13 May - 19 May 2024', format: 'PDF'),
-            const _ReportTile(icon: Icons.school, title: 'Semester Report', subtitle: 'Jan 2024 - May 2024', format: 'PDF'),
-            const _ReportTile(icon: Icons.today, title: 'Daily Report', subtitle: '20 May 2024', format: 'PDF'),
-            const SizedBox(height: 16),
-            const _ReportTile(icon: Icons.file_download, title: 'Export Data', subtitle: 'Export your attendance data', format: 'Excel', isExport: true),
-          ],
-        ),
-      ),
+          )
+          .toList(),
     );
   }
 }
@@ -68,15 +221,15 @@ class _ReportTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  final String format;
-  final bool isExport;
+  final String trailing;
+  final Color? trailingColor;
 
   const _ReportTile({
     required this.icon,
     required this.title,
     required this.subtitle,
-    required this.format,
-    this.isExport = false,
+    required this.trailing,
+    this.trailingColor,
   });
 
   @override
@@ -95,10 +248,10 @@ class _ReportTile extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: isExport ? const Color(0xFFECFDF5) : const Color(0xFFEEF2FF),
+              color: const Color(0xFFEEF2FF),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: isExport ? AppColors.secondary : AppColors.primary, size: 22),
+            child: Icon(icon, color: AppColors.primary, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -110,13 +263,13 @@ class _ReportTile extends StatelessWidget {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(6),
+          Text(
+            trailing,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: trailingColor ?? AppColors.textPrimary,
             ),
-            child: Text(format, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
           ),
         ],
       ),

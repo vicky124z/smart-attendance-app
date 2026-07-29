@@ -69,7 +69,14 @@ class AttendanceSuccessScreen extends StatelessWidget {
                   children: [
                     _DetailRow(label: 'Course', value: r != null ? '${r.courseName} (${r.courseCode})' : '-'),
                     const SizedBox(height: 12),
-                    _DetailRow(label: 'Session ID', value: r?.sessionId.substring(0, 8).toUpperCase() ?? '-'),
+                    _DetailRow(
+                      label: 'Session ID',
+                      value: r == null
+                          ? '-'
+                          : (r.sessionId.length >= 8
+                              ? r.sessionId.substring(0, 8).toUpperCase()
+                              : r.sessionId.toUpperCase()),
+                    ),
                     const SizedBox(height: 12),
                     _DetailRow(label: 'Time', value: r != null ? _formatTime(r.markedAt) : '-'),
                     const SizedBox(height: 12),

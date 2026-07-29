@@ -112,7 +112,12 @@ class _StudentHomeState extends State<_StudentHome> {
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none_rounded),
-            onPressed: () {},
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const StudentNotifications()),
+              );
+            },
           ),
         ],
       ),
