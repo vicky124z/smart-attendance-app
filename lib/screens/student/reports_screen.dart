@@ -1,3 +1,4 @@
+import '../../widgets/export_attendance_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../utils/app_colors.dart';
@@ -60,6 +61,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Reports'),
+        actions: [
+          IconButton(
+            tooltip: 'Export report',
+            icon: const Icon(Icons.download_rounded),
+            onPressed: () => showExportAttendanceSheet(context),
+          ),
+        ],
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.maybePop(context),

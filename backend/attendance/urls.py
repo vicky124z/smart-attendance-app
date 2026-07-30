@@ -14,4 +14,5 @@ urlpatterns = [
     path('dashboard/teacher/', views.TeacherDashboardView.as_view(), name='teacher_dashboard'),
     path('dashboard/admin/', views.AdminDashboardView.as_view(), name='admin_dashboard'),
     path('analytics/admin/', views.AdminAnalyticsView.as_view(), name='admin_analytics'),
+    path('export/', views.ExportAttendanceView.as_view(), name='export_attendance'),
 ] + router.urls

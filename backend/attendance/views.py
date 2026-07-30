@@ -270,3 +270,99 @@ class AdminAnalyticsView(APIView):
             'trend': trend,
             'department_wise': department_wise,
         })
+
+
+class ExportAttendanceView(APIView):
+    """
+    Export attendance records as CSV.
+
+    Query params (all optional):
+      - course: course UUID
+      - department: department UUID
+      - student: student UUID
+      - from: YYYY-MM-DD
+      - to: YYYY-MM-DD
+      - format: csv (default) | json
+
+    Access:
+      - admin: all records (filterable)
+      - teacher: records for their courses only
+      - student: own records only
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        import csv
+        from io import StringIO
+        from django.http import HttpResponse
+
+        user = request.user
+        qs = AttendanceRecord.objects.select_related(
+            'student', 'course', 'course__department', 'session'
+        ).order_by('-marked_at')
+
+        if user.role == 'student':
+            qs = qs.filter(student=user)
+        elif user.role == 'teacher':
+            qs = qs.filter(course__teacher=user)
+        # admin sees all
+
+        course_id = request.query_params.get('course')
+        department_id = request.query_params.get('department')
+        student_id = request.query_params.get('student')
+        date_from = request.query_params.get('from')
+        date_to = request.query_params.get('to')
+
+        if course_id:
+            qs = qs.filter(course_id=course_id)
+        if department_id:
+            qs = qs.filter(course__department_id=department_id)
+        if student_id and user.role == 'admin':
+            qs = qs.filter(student_id=student_id)
+        if date_from:
+            qs = qs.filter(marked_at__date__gte=date_from)
+        if date_to:
+            qs = qs.filter(marked_at__date__lte=date_to)
+
+        fmt = (request.query_params.get('format') or 'csv').lower()
+
+        if fmt == 'json':
+            data = [
+                {
+                    'student_name': r.student.get_full_name() or r.student.username,
+                    'student_email': r.student.email,
+                    'student_code': r.student.student_code,
+                    'course_name': r.course.name,
+                    'course_code': r.course.code,
+                    'department': r.course.department.name if r.course.department else '',
+                    'status': r.status,
+                    'marked_at': r.marked_at.isoformat() if r.marked_at else '',
+                    'session_id': str(r.session_id) if r.session_id else '',
+                }
+                for r in qs[:5000]
+            ]
+            return Response({'count': len(data), 'results': data})
+
+        buffer = StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow([
+            'Student Name', 'Student Email', 'Student Code',
+            'Course Name', 'Course Code', 'Department',
+            'Status', 'Marked At', 'Session ID',
+        ])
+        for r in qs[:5000]:
+            writer.writerow([
+                r.student.get_full_name() or r.student.username,
+                r.student.email,
+                r.student.student_code,
+                r.course.name,
+                r.course.code,
+                r.course.department.name if r.course.department else '',
+                r.status,
+                r.marked_at.isoformat() if r.marked_at else '',
+                str(r.session_id) if r.session_id else '',
+            ])
+
+        response = HttpResponse(buffer.getvalue(), content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="attendance_export.csv"'
+        return response

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../utils/app_colors.dart';
+import '../../widgets/export_attendance_sheet.dart';
 import '../../services/attendance_service.dart';
 
 class AttendanceAnalyticsScreen extends StatefulWidget {
@@ -50,7 +51,16 @@ class _AttendanceAnalyticsScreenState extends State<AttendanceAnalyticsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Attendance Analytics (Admin)')),
+      appBar: AppBar(
+        title: const Text('Attendance Analytics (Admin)'),
+        actions: [
+          IconButton(
+            tooltip: 'Export report',
+            icon: const Icon(Icons.download_rounded),
+            onPressed: () => showExportAttendanceSheet(context),
+          ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

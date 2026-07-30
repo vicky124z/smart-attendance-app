@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../../utils/app_colors.dart';
 import '../../models/user_model.dart';
 import '../../services/accounts_service.dart';
+import '../../services/api_exception.dart';
+import '../../widgets/user_form_dialog.dart';
 
 class TeachersListScreen extends StatefulWidget {
   const TeachersListScreen({super.key});
@@ -36,18 +38,66 @@ class _TeachersListScreenState extends State<TeachersListScreen> {
       _error = null;
     });
     try {
-      final teachers = await AccountsService.instance.getUsers(role: 'teacher', search: search);
-      setState(() => _teachers = teachers);
+      final list = await AccountsService.instance.getUsers(role: 'teacher', search: search);
+      if (!mounted) return;
+      setState(() {
+        _teachers = list;
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _loading = false;
+      });
     } catch (e) {
-      setState(() => _error = e.toString());
-    } finally {
-      setState(() => _loading = false);
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
     }
   }
 
-  void _onSearchChanged(String value) {
+  void _onSearch(String q) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), () => _load(search: value));
+    _debounce = Timer(const Duration(milliseconds: 350), () => _load(search: q));
+  }
+
+  Future<void> _openForm({UserModel? teacher}) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => UserFormDialog(role: 'teacher', user: teacher),
+    );
+    if (result == true) _load();
+  }
+
+  Future<void> _delete(UserModel t) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete teacher?'),
+        content: Text('Remove ${t.name}? This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await AccountsService.instance.deleteUser(t.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Teacher deleted')));
+      _load();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
   }
 
   @override
@@ -56,11 +106,7 @@ class _TeachersListScreenState extends State<TeachersListScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Teachers')),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Add teacher flow coming soon.')),
-          );
-        },
+        onPressed: () => _openForm(),
         backgroundColor: AppColors.primary,
         child: const Icon(Icons.add, color: Colors.white),
       ),
@@ -69,7 +115,7 @@ class _TeachersListScreenState extends State<TeachersListScreen> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: TextField(
-              onChanged: _onSearchChanged,
+              onChanged: _onSearch,
               decoration: InputDecoration(
                 hintText: 'Search teachers...',
                 prefixIcon: const Icon(Icons.search, size: 20),
@@ -85,63 +131,73 @@ class _TeachersListScreenState extends State<TeachersListScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
                     ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(_error!, textAlign: TextAlign.center),
-                              const SizedBox(height: 12),
-                              ElevatedButton(onPressed: () => _load(), child: const Text('Retry')),
-                            ],
-                          ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_error!, style: const TextStyle(color: AppColors.danger)),
+                            const SizedBox(height: 12),
+                            ElevatedButton(onPressed: () => _load(), child: const Text('Retry')),
+                          ],
                         ),
                       )
                     : _teachers.isEmpty
                         ? const Center(
                             child: Text('No teachers found.', style: TextStyle(color: AppColors.textSecondary)),
                           )
-                        : RefreshIndicator(
-                            onRefresh: () => _load(),
-                            child: ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              itemCount: _teachers.length,
-                              itemBuilder: (context, index) {
-                                final t = _teachers[index];
-                                final parts = t.name.trim().split(' ');
-                                final initial = parts.isNotEmpty && parts.last.isNotEmpty
-                                    ? parts.last[0].toUpperCase()
-                                    : '?';
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 10),
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: AppColors.border),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      CircleAvatar(
-                                        backgroundColor: const Color(0xFFD1FAE5),
-                                        child: Text(initial, style: const TextStyle(color: AppColors.secondary, fontWeight: FontWeight.bold)),
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: _teachers.length,
+                            itemBuilder: (context, index) {
+                              final t = _teachers[index];
+                              final parts = t.name.split(' ');
+                              final initial = parts.isNotEmpty ? parts.last[0].toUpperCase() : '?';
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 10),
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundColor: const Color(0xFFD1FAE5),
+                                      child: Text(initial,
+                                          style: const TextStyle(
+                                              color: AppColors.secondary, fontWeight: FontWeight.bold)),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(t.name,
+                                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                                          Text(
+                                            [
+                                              if (t.department != null && t.department!.isNotEmpty) t.department!,
+                                              t.email,
+                                            ].join(' · '),
+                                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                          ),
+                                        ],
                                       ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(t.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                                            Text(t.department ?? '-', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                                          ],
-                                        ),
-                                      ),
-                                      Icon(Icons.chevron_right, color: AppColors.textSecondary.withValues(alpha: 0.5)),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
+                                    ),
+                                    PopupMenuButton<String>(
+                                      onSelected: (v) {
+                                        if (v == 'edit') _openForm(teacher: t);
+                                        if (v == 'delete') _delete(t);
+                                      },
+                                      itemBuilder: (_) => const [
+                                        PopupMenuItem(value: 'edit', child: Text('Edit')),
+                                        PopupMenuItem(value: 'delete', child: Text('Delete')),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
           ),
         ],

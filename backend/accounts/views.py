@@ -7,6 +7,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .permissions import IsAdmin
 from .serializers import (
+    AdminUserWriteSerializer,
     ChangePasswordSerializer,
     CustomTokenObtainPairSerializer,
     RegisterSerializer,
@@ -64,19 +65,30 @@ class ChangePasswordView(APIView):
 
 class UserViewSet(viewsets.ModelViewSet):
     """
-    Admin-only management of Students / Teachers.
-    Supports ?role=student|teacher|admin and ?search=name/email filters.
+    Admin-only CRUD for Students / Teachers / Admins.
+    Supports ?role=student|teacher|admin and ?search= filters.
     """
     queryset = User.objects.all().select_related('department')
-    serializer_class = UserSerializer
     permission_classes = [IsAdmin]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['role', 'department']
     search_fields = ['first_name', 'last_name', 'username', 'email', 'student_code', 'employee_code']
 
-    def perform_create(self, serializer):
-        # Admin creating a user directly (e.g. add student/teacher quick action)
-        password = self.request.data.get('password') or User.objects.make_random_password()
+    def get_serializer_class(self):
+        if self.action in ('create', 'update', 'partial_update'):
+            return AdminUserWriteSerializer
+        return UserSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        user.set_password(password)
-        user.save()
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response(UserSerializer(user).data)

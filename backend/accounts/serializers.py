@@ -7,6 +7,7 @@ User = get_user_model()
 
 
 class UserSerializer(serializers.ModelSerializer):
+    """Read serializer for users."""
     department_name = serializers.CharField(source='department.name', read_only=True, default='')
     attendance_percentage = serializers.SerializerMethodField()
     display_id = serializers.CharField(read_only=True)
@@ -34,6 +35,68 @@ class UserSerializer(serializers.ModelSerializer):
             return 0.0
         present = AttendanceRecord.objects.filter(student=obj, status='present').count()
         return round((present / total) * 100, 1)
+
+
+class AdminUserWriteSerializer(serializers.ModelSerializer):
+    """Admin create/update of students, teachers, admins."""
+    name = serializers.CharField(required=False, allow_blank=True)
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'name', 'first_name', 'last_name', 'email', 'phone', 'role',
+            'department', 'semester', 'student_code', 'employee_code',
+            'password', 'username',
+        ]
+        read_only_fields = ['id']
+        extra_kwargs = {
+            'email': {'required': True},
+            'role': {'required': True},
+            'username': {'required': False},
+        }
+
+    def validate_role(self, value):
+        if value not in ('admin', 'teacher', 'student'):
+            raise serializers.ValidationError('Invalid role.')
+        return value
+
+    def _apply_name(self, validated_data):
+        name = validated_data.pop('name', None)
+        if name is not None and name.strip():
+            first, _, last = name.strip().partition(' ')
+            validated_data['first_name'] = first
+            validated_data['last_name'] = last
+        return validated_data
+
+    def _ensure_username(self, email):
+        base = email.split('@')[0]
+        username = base
+        suffix = 1
+        while User.objects.filter(username=username).exists():
+            username = f'{base}{suffix}'
+            suffix += 1
+        return username
+
+    def create(self, validated_data):
+        validated_data = self._apply_name(validated_data)
+        password = validated_data.pop('password', None) or User.objects.make_random_password()
+        email = validated_data['email']
+        validated_data.setdefault('username', self._ensure_username(email))
+        user = User(**validated_data)
+        user.set_password(password)
+        user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        validated_data = self._apply_name(validated_data)
+        password = validated_data.pop('password', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if password:
+            instance.set_password(password)
+        instance.save()
+        return instance
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -72,10 +135,6 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """
-    Allows logging in with email + password (and optionally validates the
-    role selected on the mobile role-selection screen matches the account).
-    """
     username_field = User.USERNAME_FIELD
 
     def validate(self, attrs):

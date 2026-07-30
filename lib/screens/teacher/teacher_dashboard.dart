@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../utils/app_colors.dart';
+import '../../widgets/export_attendance_sheet.dart';
 import '../../services/attendance_service.dart';
 import '../../providers/auth_provider.dart';
 import 'create_session.dart';
@@ -404,6 +405,11 @@ class _TeacherMore extends StatelessWidget {
           ],
           const Text('Account', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
           const SizedBox(height: 8),
+          _MenuTile(
+            icon: Icons.download_rounded,
+            title: 'Export Attendance Report',
+            onTap: () => showExportAttendanceSheet(context),
+          ),
           _MenuTile(
             icon: Icons.logout,
             title: 'Logout',

@@ -7,6 +7,7 @@ import 'teachers_list.dart';
 import 'courses_list.dart';
 import 'departments_list.dart';
 import 'attendance_analytics.dart';
+import '../../widgets/export_attendance_sheet.dart';
 
 class AdminMoreScreen extends StatelessWidget {
   const AdminMoreScreen({super.key});
@@ -49,6 +50,11 @@ class AdminMoreScreen extends StatelessWidget {
             icon: Icons.bar_chart,
             title: 'Attendance Analytics',
             onTap: () => _open(context, const AttendanceAnalyticsScreen()),
+          ),
+          _MenuTile(
+            icon: Icons.download_rounded,
+            title: 'Export Attendance Report',
+            onTap: () => showExportAttendanceSheet(context),
           ),
           const SizedBox(height: 20),
           const Text('Account', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
